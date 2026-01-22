@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../shared/widgets/weather_card.dart';
+
 import '../../../shared/widgets/search_bar_widget.dart';
 import '../../../shared/widgets/loading_widget.dart';
 import '../../../shared/widgets/error_widget.dart';
 import '../../../shared/widgets/animater_weather_background.dart';
+
 import '../../weather/presentation/weather_provder.dart';
 import '../../favourites/presentation/favourite_provider.dart';
 
@@ -20,28 +21,24 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _loadInitialData();
-    });
+    WidgetsBinding.instance.addPostFrameCallback((_) => _initLoad());
   }
 
-  void _loadInitialData() {
-    final weatherNotifier = ref.read(weatherProvider.notifier);
-    final favoritesNotifier = ref.read(favoritesProvider.notifier);
+  void _initLoad() {
+    final weather = ref.read(weatherProvider.notifier);
+    final favs = ref.read(favoritesProvider.notifier);
 
-    weatherNotifier.loadLastCity().then((_) {
+    weather.loadLastCity().then((_) {
       if (!ref.read(weatherProvider).hasWeather) {
-        weatherNotifier.fetchWeatherAndForecast('London');
+        weather.fetchWeatherAndForecast('London');
       }
     });
 
-    favoritesNotifier.loadFavorites();
+    favs.loadFavorites();
   }
 
-  bool _isNightTime(String? iconCode) {
-    if (iconCode != null && iconCode.isNotEmpty) {
-      return iconCode.endsWith('n');
-    }
+  bool _isNight(String? icon) {
+    if (icon != null && icon.isNotEmpty) return icon.endsWith('n');
     final hour = DateTime.now().hour;
     return hour >= 19 || hour < 6;
   }
@@ -55,116 +52,33 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       ),
     );
 
-    final weatherState = ref.watch(weatherProvider);
-    final weatherCondition = weatherState.currentWeather?.description;
-    final iconCode = weatherState.currentWeather?.icon;
-    final isNight = _isNightTime(iconCode);
+    final state = ref.watch(weatherProvider);
 
-    return Stack(
-      children: [
-        AnimatedWeatherBackground(
-          weatherCondition: weatherCondition,
-          isNight: isNight,
-          child: SafeArea(
-            bottom: false,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildMinimalHeader(),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: _buildSearchBar(),
-                ),
-                const SizedBox(height: 12),
-                Expanded(
-                  child: _buildWeatherContent(context, weatherState),
-                ),
-              ],
-            ),
-          ),
+    return AnimatedWeatherBackground(
+      weatherCondition: state.currentWeather?.description,
+      isNight: _isNight(state.currentWeather?.icon),
+      child: SafeArea(
+        child: Scaffold(
+          backgroundColor: Colors.transparent,
+          floatingActionButton: _locationFab(state),
+          body: _buildBody(state),
         ),
-        Positioned(
-          right: 20,
-          bottom: 120,
-          child: FloatingActionButton(
-            onPressed: weatherState.isLoading
-                ? null
-                : () => ref
-                    .read(weatherProvider.notifier)
-                    .fetchWeatherByLocation(),
-            backgroundColor: Colors.white,
-            foregroundColor: Colors.blue[700],
-            elevation: 6,
-            child: weatherState.isLoading
-                ? const SizedBox(
-                    width: 22,
-                    height: 22,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.my_location_rounded),
-          ),
-        ),
-      ],
-    );
-  }
-
-  // ================= MINIMAL HEADER =================
-
-  Widget _buildMinimalHeader() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            _getGreeting(),
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.white.withValues(alpha: 0.8),
-            ),
-          ),
-          const SizedBox(height: 6),
-          const Text(
-            'Weather',
-            style: TextStyle(
-              fontSize: 34,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
-            ),
-          ),
-        ],
       ),
     );
   }
 
-  String _getGreeting() {
-    final hour = DateTime.now().hour;
-    if (hour < 12) return 'Good Morning';
-    if (hour < 17) return 'Good Afternoon';
-    if (hour < 21) return 'Good Evening';
-    return 'Good Night';
-  }
+  // ================= BODY =================
 
-  Widget _buildSearchBar() {
-    return SearchBarWidget(
-      hintText: 'Type city name',
-      onSearch: (city) {
-        ref.read(weatherProvider.notifier).fetchWeatherAndForecast(city);
-      },
-    );
-  }
-
-  // ================= WEATHER CONTENT =================
-
-  Widget _buildWeatherContent(
-      BuildContext context, WeatherState weatherState) {
-    if (weatherState.isLoading) {
-      return const LoadingWidget(message: 'Fetching weather data...');
+  Widget _buildBody(WeatherState state) {
+    if (state.isLoading) {
+      return const LoadingWidget(
+        message: 'Collecting atmospheric data...',
+      );
     }
 
-    if (weatherState.errorMessage != null) {
+    if (state.errorMessage != null) {
       return ErrorDisplayWidget(
-        message: weatherState.errorMessage!,
+        message: state.errorMessage!,
         onRetry: () {
           ref
               .read(weatherProvider.notifier)
@@ -173,104 +87,195 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       );
     }
 
-    if (weatherState.hasWeather) {
-      final weather = weatherState.currentWeather!;
-      final favoritesState = ref.watch(favoritesProvider);
-      final isFavorite = favoritesState.favorites.any(
-        (city) =>
-            city.name.toLowerCase() ==
-            weather.cityName.toLowerCase(),
-      );
+    if (!state.hasWeather) {
+      return _emptyState();
+    }
 
-      return RefreshIndicator(
-        onRefresh: () async {
-          await ref
-              .read(weatherProvider.notifier)
-              .fetchWeatherAndForecast(weather.cityName);
-        },
-        child: SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(20, 20, 20, 140),
-          child: Column(
+    return _weatherFlow(state);
+  }
+
+  // ================= MAIN FLOW =================
+
+  Widget _weatherFlow(WeatherState state) {
+    final weather = state.currentWeather!;
+    final favState = ref.watch(favoritesProvider);
+
+    final isFav = favState.favorites.any(
+      (c) => c.name.toLowerCase() == weather.cityName.toLowerCase(),
+    );
+
+    return Column(
+      children: [
+        Expanded(
+          flex: 5,
+          child: _temperatureStage(weather, isFav),
+        ),
+        Expanded(
+          flex: 3,
+          child: _infoRail(weather),
+        ),
+      ],
+    );
+  }
+
+  // ================= TEMPERATURE STAGE =================
+
+  Widget _temperatureStage(weather, bool isFav) {
+    return Padding(
+      padding: const EdgeInsets.all(26),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            weather.cityName,
+            style: const TextStyle(
+              fontSize: 26,
+              fontWeight: FontWeight.w600,
+              color: Colors.white,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            weather.description.toUpperCase(),
+            style: TextStyle(
+              fontSize: 12,
+              letterSpacing: 2,
+              color: Colors.white.withValues(alpha: 0.7),
+            ),
+          ),
+
+          const Spacer(),
+
+          Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Center(
-                child: WeatherCard(
-                  weather: weather,
-                  isFavorite: isFavorite,
-                  onFavoritePressed: () {
-                    ref
-                        .read(favoritesProvider.notifier)
-                        .toggleFavorite(weather);
-                  },
-                ),
-              ),
-
-              const SizedBox(height: 40),
-
-              const Text(
-                'Details',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
+              Text(
+                '${weather.temperature.round()}',
+                style: const TextStyle(
+                  fontSize: 110,
+                  fontWeight: FontWeight.bold,
                   color: Colors.white,
                 ),
               ),
-              const SizedBox(height: 16),
-
-              _detailRow(
-                Icons.thermostat,
-                'Min / Max',
-                '${weather.tempMin.round()}° / ${weather.tempMax.round()}°',
-              ),
-              _detailRow(
-                Icons.speed,
-                'Pressure',
-                '${weather.pressure} hPa',
-              ),
-              _detailRow(
-                Icons.wb_sunny_outlined,
-                'Sunrise',
-                _formatTime(weather.sunrise),
-              ),
-              _detailRow(
-                Icons.nightlight_round,
-                'Sunset',
-                _formatTime(weather.sunset),
+              const Padding(
+                padding: EdgeInsets.only(top: 18),
+                child: Text(
+                  '°C',
+                  style: TextStyle(
+                    fontSize: 32,
+                    color: Colors.white,
+                  ),
+                ),
               ),
             ],
           ),
-        ),
-      );
-    }
 
-    return _buildEmptyState(context);
+          const SizedBox(height: 12),
+
+          Row(
+            children: [
+              _tempChip('MIN', '${weather.tempMin.round()}°'),
+              const SizedBox(width: 18),
+              _tempChip('MAX', '${weather.tempMax.round()}°'),
+              const Spacer(),
+              IconButton(
+                icon: Icon(
+                  isFav ? Icons.favorite : Icons.favorite_border,
+                  color: Colors.white,
+                ),
+                onPressed: () {
+                  ref
+                      .read(favoritesProvider.notifier)
+                      .toggleFavorite(weather);
+                },
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 24),
+
+          SearchBarWidget(
+            hintText: 'Change location',
+            onSearch: (city) {
+              ref
+                  .read(weatherProvider.notifier)
+                  .fetchWeatherAndForecast(city);
+            },
+          ),
+        ],
+      ),
+    );
   }
 
-  // ================= DETAIL ROW =================
+  Widget _tempChip(String label, String value) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 10,
+            letterSpacing: 1.6,
+            color: Colors.white.withValues(alpha: 0.7),
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: const TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
+            color: Colors.white,
+          ),
+        ),
+      ],
+    );
+  }
 
-  Widget _detailRow(IconData icon, String title, String value) {
+  // ================= INFO RAIL =================
+
+  Widget _infoRail(weather) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 24),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.28),
+        borderRadius: const BorderRadius.vertical(
+          top: Radius.circular(34),
+        ),
+      ),
+      child: Column(
+        children: [
+          _railItem('Pressure', '${weather.pressure} hPa'),
+          _railItem('Sunrise', _formatTime(weather.sunrise)),
+          _railItem('Sunset', _formatTime(weather.sunset)),
+
+          const SizedBox(height: 22),
+          const Divider(color: Colors.white24),
+          const SizedBox(height: 16),
+
+          _infoGrid(weather),
+        ],
+      ),
+    );
+  }
+
+  Widget _railItem(String label, String value) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 18),
       child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Icon(icon, color: Colors.white, size: 22),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Text(
-              title,
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.white.withValues(alpha: 0.75),
-              ),
+          Text(
+            label,
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.75),
             ),
           ),
           Text(
             value,
             style: const TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.bold,
               color: Colors.white,
+              fontWeight: FontWeight.w600,
             ),
           ),
         ],
@@ -278,43 +283,94 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
-  // ================= EMPTY STATE =================
+  // ================= EXTRA STATS =================
 
-  Widget _buildEmptyState(BuildContext context) {
+  Widget _infoGrid(weather) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        _miniStat(
+          icon: Icons.water_drop_outlined,
+          label: 'Humidity',
+          value: '${weather.humidity}%',
+        ),
+        _miniStat(
+          icon: Icons.air,
+          label: 'Wind',
+          value: '${weather.windSpeed} m/s',
+        ),
+        _miniStat(
+          icon: Icons.visibility_outlined,
+          label: 'Visibility',
+          value:
+              '${(weather.visibility / 1000).toStringAsFixed(1)} km',
+        ),
+      ],
+    );
+  }
+
+  Widget _miniStat({
+    required IconData icon,
+    required String label,
+    required String value,
+  }) {
+    return Column(
+      children: [
+        Icon(icon, color: Colors.white70, size: 22),
+        const SizedBox(height: 6),
+        Text(
+          value,
+          style: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w600,
+            fontSize: 14,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          label,
+          style: TextStyle(
+            color: Colors.white.withValues(alpha: 0.65),
+            fontSize: 11,
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ================= EMPTY =================
+
+  Widget _emptyState() {
     return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(36),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.search_rounded,
-                size: 70, color: Colors.white),
-            const SizedBox(height: 20),
-            const Text(
-              'Search a City',
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-              ),
-            ),
-            const SizedBox(height: 10),
-            Text(
-              'Find live weather updates\nfor any location worldwide',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 15,
-                color: Colors.white.withValues(alpha: 0.8),
-              ),
-            ),
-          ],
+      child: Text(
+        'Search a city to begin',
+        style: TextStyle(
+          fontSize: 18,
+          color: Colors.white.withValues(alpha: 0.8),
         ),
       ),
     );
   }
 
+  // ================= FLOATING BUTTON =================
+
+  Widget _locationFab(WeatherState state) {
+    return FloatingActionButton.extended(
+      onPressed: state.isLoading
+          ? null
+          : () => ref
+              .read(weatherProvider.notifier)
+              .fetchWeatherByLocation(),
+      backgroundColor: Colors.white,
+      foregroundColor: Colors.black,
+      icon: const Icon(Icons.my_location),
+      label: const Text('Use GPS'),
+    );
+  }
+
   String _formatTime(int timestamp) {
-    final date = DateTime.fromMillisecondsSinceEpoch(timestamp * 1000);
+    final date =
+        DateTime.fromMillisecondsSinceEpoch(timestamp * 1000);
     return '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
   }
 }
