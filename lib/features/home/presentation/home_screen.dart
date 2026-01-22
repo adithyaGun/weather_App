@@ -364,7 +364,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       backgroundColor: Colors.white,
       foregroundColor: Colors.black,
       icon: const Icon(Icons.my_location),
-      label: const Text('Use GPS'),
+      label: const Text('Current Location'),
     );
   }
 
