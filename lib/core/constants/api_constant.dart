@@ -1,9 +1,9 @@
 class ApiConstants {
   // OpenWeatherMap now works with HTTP for free tier
-  static const String baseUrl = 'http://api.openweathermap.org/data/2.5';
+  static const String baseUrl = 'http://api.openweathermap.org/data/2.5/weather';
 
   // API key
-  static const String apiKey = '35e0b0fa6a082f91ade962ac8cb197b3';
+  static const String apiKey = 'bba1af196401df6649e0336b7a881960';
 
   // Endpoints
   static const String currentWeather = '/weather';
