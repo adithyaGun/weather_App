@@ -1,0 +1,4 @@
+storePassword=20021229
+keyPassword=20021229
+keyAlias=upload
+storeFile=app-release-key.jks
