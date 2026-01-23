@@ -1,37 +1,47 @@
-
 class ApiConstants {
-  static const String baseUrl = 'https://api.openweathermap.org/data/2.5';
-  static const String apiKey = '6be34b99763185265033ded775e7dfb0';
-  
- 
+  // OpenWeatherMap now works with HTTP for free tier
+  static const String baseUrl = 'http://api.openweathermap.org/data/2.5';
+
+  // API key
+  static const String apiKey = 'bba1af196401df6649e0336b7a881960';
+
+  // Endpoints
   static const String currentWeather = '/weather';
   static const String forecast = '/forecast';
-  
+
+  // Units
   static const String units = 'metric';
-  
+
+  // Current weather by city
   static String getCurrentWeatherByCity(String cityName) {
-    return '$baseUrl$currentWeather?q=$cityName&appid=$apiKey&units=$units';
-  }
-  
-  static String getCurrentWeatherByCoords(double lat, double lon) {
-    return '$baseUrl$currentWeather?lat=$lat&lon=$lon&appid=$apiKey&units=$units';
-  }
-  
-  static String getForecastByCity(String cityName) {
-    return '$baseUrl$forecast?q=$cityName&appid=$apiKey&units=$units';
-  }
-  
-  static String getForecastByCoords(double lat, double lon) {
-    return '$baseUrl$forecast?lat=$lat&lon=$lon&appid=$apiKey&units=$units';
-  }
-  
-  static String getIconUrl(String iconCode) {
-    return 'https://openweathermap.org/img/wn/$iconCode@2x.png';
+    return '$baseUrl$currentWeather?q=$cityName&APPID=$apiKey&units=$units';
   }
 
-  static const String geoBaseUrl = 'https://api.openweathermap.org/geo/1.0';
-  
+  // Current weather by coordinates
+  static String getCurrentWeatherByCoords(double lat, double lon) {
+    return '$baseUrl$currentWeather?lat=$lat&lon=$lon&APPID=$apiKey&units=$units';
+  }
+
+  // Forecast by city
+  static String getForecastByCity(String cityName) {
+    return '$baseUrl$forecast?q=$cityName&APPID=$apiKey&units=$units';
+  }
+
+  // Forecast by coordinates
+  static String getForecastByCoords(double lat, double lon) {
+    return '$baseUrl$forecast?lat=$lat&lon=$lon&APPID=$apiKey&units=$units';
+  }
+
+  // Weather icon
+  static String getIconUrl(String iconCode) {
+    return 'http://openweathermap.org/img/wn/$iconCode@2x.png';
+  }
+
+  // Geo API (also HTTP)
+  static const String geoBaseUrl = 'http://api.openweathermap.org/geo/1.0';
+
+  // City search
   static String searchCities(String query, {int limit = 5}) {
-    return '$geoBaseUrl/direct?q=$query&limit=$limit&appid=$apiKey';
+    return '$geoBaseUrl/direct?q=$query&limit=$limit&APPID=$apiKey';
   }
 }
